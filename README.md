@@ -22,6 +22,13 @@ Evaluate the performance of selected three models using different statistical ev
 - Observations: 1,059  
 - Source: Kaggle 
 
+## Methods
+
+Implemented in **R**
+Continuous variables (pH, Temperature) are scaled and the target variable Grade is encoded (low-1, medium-2, high-3).
+Train on 70% of data and evaluated on 30% test data.
+Hyperparameter tuning was performed using **random search**.
+
 
 <p align="center">
   <img src="Images/target.png" width="400" alt="Milk Quality Chart">
