@@ -1,0 +1,422 @@
+---
+title: "Milk Quality - ML Project"
+author: "Irosha Sandamali"
+date: "2025-12-02"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r}
+# Load necessary libraries
+library(readxl)
+library(caret)
+library(nnet)
+library(uuml)
+library(randomForest)
+library(Metrics)
+
+```
+
+```{r}
+#Read Data set
+MData <- read.csv("milknew.csv")
+```
+
+```{r}
+# Summarize the dataset
+summary(MData)
+str(MData)
+
+# Check for missing values
+colSums(is.na(MData))
+```
+
+```{r}
+# Min-Max Scaling (excluding Color as it is now categorical)
+scale_min_max <- function(x) {
+  return((x - min(x)) / (max(x) - min(x)))
+}
+
+MData$pH <- scale_min_max(MData$pH)
+MData$Temprature <- scale_min_max(MData$Temprature)
+
+
+MData$Grade <- as.numeric(factor(MData$Grade, levels = c("low", "medium", "high")))
+
+
+head(MData$Grade)
+head(MData$Colour)
+```
+
+```{r}
+# Load necessary library
+library(ggplot2)
+
+# Create boxplots for all numerical variables
+numerical_cols <- sapply(MData, is.numeric)
+
+# Boxplot for each numerical variable
+for (col in names(MData)[numerical_cols]) {
+  print(ggplot(MData, aes_string(y = col)) +
+          geom_boxplot(outlier.colour = "red", outlier.shape = 16) +
+          labs(title = paste("Boxplot of", col), y = col))}
+```
+
+```{r}
+# Function to cap outliers
+cap_outliers <- function(column) {
+  Q1 <- quantile(column, 0.25, na.rm = TRUE)
+  Q3 <- quantile(column, 0.75, na.rm = TRUE)
+  IQR <- Q3 - Q1
+  lower_bound <- Q1 - 1.5 * IQR
+  upper_bound <- Q3 + 1.5 * IQR
+  column[column < lower_bound] <- lower_bound
+  column[column > upper_bound] <- upper_bound
+  return(column)
+}
+
+# Apply capping to pH and Temperature
+MData$pH <- cap_outliers(MData$pH)
+MData$Temprature <- cap_outliers(MData$Temprature)
+```
+
+```{r}
+# Boxplot after handling outliers
+for (col in names(MData)[numerical_cols]) {
+  print(ggplot(MData, aes_string(y = col)) +
+          geom_boxplot(outlier.colour = "red", outlier.shape = 16) +
+          labs(title = paste("Boxplot of", col, "After Handling Outliers"), y = col))
+}
+```
+
+```{r}
+set.seed(19999)
+
+
+# Split data into training and testing sets
+
+trainIndex <- createDataPartition(MData$Grade, p = 0.7, list = FALSE)
+trainData <- MData[trainIndex, ]
+testData <- MData[-trainIndex, ]
+
+head(trainData$Grade)
+```
+
+
+#Multinomial  Logistic Regression
+
+```{r}
+trainData$Grade <- as.factor(trainData$Grade)
+testData$Grade <- as.factor(testData$Grade)
+
+logistic_model <- multinom(Grade ~ ., data = trainData)
+
+logistic_pred <- predict(logistic_model,testData)
+
+conf_matrix1 <- confusionMatrix(as.factor(logistic_pred), as.factor(testData$Grade))
+conf_matrix1
+
+
+```
+
+```{r}
+logistic_train_pred <- predict(logistic_model, trainData)
+conf_matrix_train <- confusionMatrix(as.factor(logistic_train_pred), as.factor(trainData$Grade))
+print(conf_matrix_train$overall["Accuracy"])
+
+```
+
+```{r}
+# Metrics
+accuracy <- conf_matrix1$overall['Accuracy']
+# Compute metrics for each class
+precision <- conf_matrix1$byClass[,'Precision']
+recall <- conf_matrix1$byClass[,'Recall']
+f1 <- conf_matrix1$byClass[,'F1']
+
+# Calculate Macro-Averaged Scores (average across all classes)
+macro_precision <- mean(precision, na.rm = TRUE)
+macro_recall <- mean(recall, na.rm = TRUE)
+macro_f1 <- mean(f1, na.rm = TRUE)
+
+# Print Results
+cat("Logistic Regression Metrics (Multi-Class):\n")
+cat("Accuracy: ", accuracy, "\n")
+cat("Macro Precision: ", macro_precision, "\n")
+cat("Macro Recall: ", macro_recall, "\n")
+cat("Macro F1 Score: ", macro_f1, "\n")
+```
+
+# Initial Rf
+
+```{r}
+#rf_model <- randomForest(Grade ~ ., data = trainData,ntree = 100, maxnodes = 3)
+rf_model <- randomForest(Grade ~ ., data = trainData)
+#rf_model <- randomForest(Grade ~ ., data = trainData)
+rf_pred <- predict(rf_model,testData)
+head(rf_pred)
+head(testData$Grade)
+
+conf_matrix2 <- confusionMatrix(as.factor(rf_pred), as.factor(testData$Grade))
+conf_matrix2
+
+print(rf_model)
+```
+
+
+```{r}
+rf_train_pred <- predict(rf_model, trainData)
+conf_matrix_train <- confusionMatrix(as.factor(rf_train_pred), as.factor(trainData$Grade))
+print(conf_matrix_train$overall["Accuracy"])
+
+plot(rf_model)
+```
+
+
+# Hyper tunning rf
+
+```{r}
+library(caret)
+library(doParallel)
+
+# Enable parallel processing for faster computation
+cl <- makeCluster(detectCores() - 1)  # Use all cores except 1
+registerDoParallel(cl)
+```
+
+
+```{r}
+# Define random search parameters
+control <- trainControl(method = "cv",          # Cross-validation
+                        number = 5,            # 5-fold CV
+                        search = "random",     # Use random search
+                        allowParallel = TRUE)  # Parallel processing enabled
+
+#set.seed(123)  # For reproducibility
+
+# Train the model with random search
+tuned_rf <- train(
+  Grade ~ ., 
+  data = trainData,
+  method = "rf",                         # Random Forest model
+  metric = "Accuracy",                   # Optimize for accuracy
+  trControl = control,                   # Train control
+  tuneLength = 15                        # Randomly search 15 parameter combinations
+)
+
+# View the best parameters
+print(tuned_rf$bestTune)
+
+```
+
+```{r}
+set.seed(123)
+#rf_model <- randomForest(Grade ~ ., data = trainData,ntree = 100, maxnodes = 3)
+rf_model <- randomForest(Grade ~ ., data = trainData,
+                         ntree = 100,
+                         mtry = 2,
+                         importance = TRUE,
+                         proximity = TRUE,
+                         maxnodes = 10)
+#rf_model <- randomForest(Grade ~ ., data = trainData)
+rf_pred <- predict(rf_model,testData)
+head(rf_pred)
+head(testData$Grade)
+
+conf_matrix2 <- confusionMatrix(as.factor(rf_pred), as.factor(testData$Grade))
+conf_matrix2
+
+print(rf_model)
+```
+
+```{r}
+rf_train_pred <- predict(rf_model, trainData)
+conf_matrix_train <- confusionMatrix(as.factor(rf_train_pred), as.factor(trainData$Grade))
+print(conf_matrix_train$overall["Accuracy"])
+
+#plot(rf_model)
+```
+
+
+```{r}
+# Metrics
+accuracy <- conf_matrix2$overall['Accuracy']
+
+
+# Calculate Macro-Averaged Scores (average across all classes)
+precision <- conf_matrix2$byClass[,'Precision']  # Extract precision per class
+recall <- conf_matrix2$byClass[,'Recall']        # Extract recall per class
+f1 <- conf_matrix2$byClass[,'F1']                # Extract F1 score per class
+
+macro_precision <- mean(precision, na.rm = TRUE)  # Macro-Averaged Precision
+macro_recall <- mean(recall, na.rm = TRUE)        # Macro-Averaged Recall
+macro_f1 <- mean(f1, na.rm = TRUE)  
+
+cat("Random Forest Metrics:\n")
+cat("Accuracy: ", accuracy, "\n")
+cat("Macro Precision: ", macro_precision, "\n")
+cat("Macro Recall: ", macro_recall, "\n")
+cat("Macro F1 Score: ", macro_f1, "\n")
+```
+
+```{r}
+importance(rf_model)
+varImpPlot(rf_model)
+```
+
+```{r}
+importance_values <- importance(rf_model)
+importance_values
+# Extract feature importance
+varImpPlot(rf_model, main = "Feature Importance", type = 2)  # Type = 1: MeanDecreaseAccuracy
+
+```
+
+#XGBoosts
+
+```{r}
+library(xgboost)
+
+train_labels <- as.numeric(factor(trainData$Grade)) - 1  # Zero-indexed
+test_labels <- as.numeric(factor(testData$Grade)) - 1    # Zero-indexed
+
+# Prepare the data by excluding the target column
+train_matrix <- as.matrix(trainData[, -which(names(trainData) == "Grade")]) # Features only
+test_matrix <- as.matrix(testData[, -which(names(testData) == "Grade")])   # Features only
+
+# Convert data to DMatrix format for XGBoost
+dtrain <- xgb.DMatrix(data = train_matrix, label = train_labels)
+dtest <- xgb.DMatrix(data = test_matrix, label = test_labels)
+
+# Define random search parameters
+control <- trainControl(
+  method = "cv",         # Cross-validation
+  number = 5,            # 5 folds
+  search = "random",     # Random search instead of grid search
+  allowParallel = TRUE   # Enable parallel processing
+)
+
+set.seed(123)  # For reproducibility
+
+# Train model using random search
+tuned_xgb <- train(
+  x = train_matrix,
+  y = as.factor(train_labels),       # Labels must be factors for caret
+  method = "xgbTree",                # XGBoost Model
+  metric = "Accuracy",               # Optimize for Accuracy
+  trControl = control,               # Training control
+  tuneLength = 5                    # Randomly test 5 combinations of parameters
+)
+
+# View the best hyperparameters
+print(tuned_xgb$bestTune)
+
+```
+
+```{r}
+params <- list(
+  booster = "gbtree",
+  objective = "multi:softmax",
+  num_class = length(unique(train_labels)),
+  eval_metric= "mlogloss",
+  eta = 0.03, #
+  max_depth = 6,#
+  gamma = 6.4, #
+  subsample = 0.49,#
+  colsample_bytree = 0.54, #
+  min_child_weight = 3 #
+  #lambda = 1,
+  #alpha = 0
+)
+
+
+
+# Train the XGBoost model
+xgb_model <- xgb.train(
+  params = params,
+  data = dtrain,
+  nrounds = 938,#                             # Number of boosting rounds
+ # watchlist = watchlist,
+  #early_stopping_rounds = 10,
+  #verbose = 0                               
+)
+
+# Make predictions
+predictions <- predict(xgb_model, dtest)
+
+# Evaluate the model
+conf_mat <- confusionMatrix(as.factor(predictions), as.factor(test_labels))
+
+# Print evaluation results
+print(conf_mat)
+
+# Compute Confusion Matrix
+conf_mat <- confusionMatrix(as.factor(predictions), as.factor(test_labels))
+
+# Extract Metrics
+accuracy <- conf_mat$overall['Accuracy']
+precision <- conf_mat$byClass[,'Precision']  # Per-class precision
+recall <- conf_mat$byClass[,'Recall']        # Per-class recall
+f1 <- conf_mat$byClass[,'F1']                # Per-class F1 score
+
+# Compute Macro-Averaged Metrics
+macro_precision <- mean(precision, na.rm = TRUE)
+macro_recall <- mean(recall, na.rm = TRUE)
+macro_f1 <- mean(f1, na.rm = TRUE)
+
+# Print Results
+cat("Random Search XGBoost Metrics:\n")
+cat("Accuracy: ", accuracy, "\n")
+cat("Macro Precision: ", macro_precision, "\n")
+cat("Macro Recall: ", macro_recall, "\n")
+cat("Macro F1 Score: ", macro_f1, "\n")
+
+
+# Make predictions
+train_predictions <- predict(xgb_model, dtrain)
+
+# Evaluate the model
+train_conf_mat <- confusionMatrix(as.factor(train_predictions), as.factor(train_labels))
+
+# Print evaluation results
+print(train_conf_mat)
+
+```
+
+```{r}
+# Make predictions
+predictions <- predict(tuned_xgb, test_matrix)
+
+# Compute Confusion Matrix
+conf_mat <- confusionMatrix(as.factor(predictions), as.factor(test_labels))
+
+# Extract Metrics
+accuracy <- conf_mat$overall['Accuracy']
+precision <- conf_mat$byClass[,'Precision']  # Per-class precision
+recall <- conf_mat$byClass[,'Recall']        # Per-class recall
+f1 <- conf_mat$byClass[,'F1']                # Per-class F1 score
+
+# Compute Macro-Averaged Metrics
+macro_precision <- mean(precision, na.rm = TRUE)
+macro_recall <- mean(recall, na.rm = TRUE)
+macro_f1 <- mean(f1, na.rm = TRUE)
+
+# Print Results
+cat("Random Search XGBoost Metrics:\n")
+cat("Accuracy: ", accuracy, "\n")
+cat("Macro Precision: ", macro_precision, "\n")
+cat("Macro Recall: ", macro_recall, "\n")
+cat("Macro F1 Score: ", macro_f1, "\n")
+```
+
+
+```{r}
+# Get feature importance scores
+importance_matrix <- xgb.importance(model = xgb_model)
+
+# Plot feature importance
+xgb.plot.importance(importance_matrix, main = "Feature Importance")
+```
