@@ -48,13 +48,13 @@ pH and Temperature variables are the most important features among the seven var
 
 <p align="center">
   <img src="Images/rf_features.png" width="400" alt="Features importance of RF model">
-  <em>Figure 1: Feature importance of Random Forest model</em>
 </p>
+<p align="center"><em>Figure 1: Feature importance of Random Forest model</em>
 
 <p align="center">
-  <img src="Images/xg_features.png" width="400" alt="Features importance of XGBoosts model">
-   <em>Figure 1: Feature importance of XGBoosts model</em>
+  <img src="Images/xg_features.png" width="400" alt="Features importance of XGBoosts model"> 
 </p>
+<p align="center"><em>Figure 1: Feature importance of XGBoosts model</em>
 
 
 The performane of the three models are evaluated using different metrics and the result is presented in the below table.
