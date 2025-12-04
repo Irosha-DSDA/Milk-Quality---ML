@@ -35,9 +35,9 @@ Hyperparameter tuning was performed using **random search**.
 The distribution of the target variable Grade seems like a relatively balanced dataset across the 3 categories.
 
 <p align="center">
-  <img src="Images/target.png" width="400" alt="Distribution of Target Variable">
-  <em>Figure 1: Distribution of Target Variable</em>
+  <img src="Images/target.png" width="400" alt="Distribution of Target Variable">  
 </p>
+<p align="center"><em>Figure 1: Distribution of Target Variable</em>
 
 The confusion matrix is constructed of these models. It highlights the model performance in predicting the target variable. 
 The moltinomoal logistic regression model struggled to predict the ”low” class and miss classifying it as ”medium”, and the ”high” class miss-classifying as ”low”. 
