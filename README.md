@@ -36,6 +36,7 @@ The distribution of the target variable Grade seems like a relatively balanced d
 
 <p align="center">
   <img src="Images/target.png" width="400" alt="Distribution of Target Variable">
+  <em>Figure 1: Distribution of Target Variable</em>
 </p>
 
 The confusion matrix is constructed of these models. It highlights the model performance in predicting the target variable. 
@@ -47,10 +48,12 @@ pH and Temperature variables are the most important features among the seven var
 
 <p align="center">
   <img src="Images/rf_features.png" width="400" alt="Features importance of RF model">
+  <em>Figure 1: Feature importance of Random Forest model</em>
 </p>
 
 <p align="center">
   <img src="Images/xg_features.png" width="400" alt="Features importance of XGBoosts model">
+   <em>Figure 1: Feature importance of XGBoosts model</em>
 </p>
 
 
